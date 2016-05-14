@@ -1,0 +1,1642 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>Zello Enterprise Server API reference</title>
+	<style>
+		body {
+			font-family: Tahoma, Arial, Helvetica, sans-serif;
+			padding: 12px 24px;
+		}
+		#logo {
+			position: absolute;
+			top: 24px;
+			right: 24px;
+			border: 0;
+		}
+		h1 {
+			margin-right: 200px;
+		}
+		pre, .code {
+			font-family: monospace;
+			background: #eeeeee;
+			padding: 2px;
+			overflow-x: scroll;
+		}
+		th {
+			text-align: left;
+			padding: 8px;
+			border-bottom: 1px solid gray;
+		}
+		td {
+			padding: 8px;
+			vertical-align: top;
+		}
+		h2, h3, h5 {
+			color: #444444;
+		}
+		h4 {
+			font-size: 2em;
+			font-weight: bold;
+			margin: 0 0 0.5em;
+			font-family: monospace;
+		}
+		h3 {
+			text-align: right;
+			border-bottom: 1px dotted black;
+		}
+		h6 {
+			color: #545454;
+			font-size: 0.8em;
+			margin: 0 0 0.5em;
+		}
+		table.params tr td:nth-child(2) {
+			white-space: nowrap;
+		}
+		sup {
+			font-size: x-small;
+		}
+	</style>
+
+</head>
+<body>
+<a href="http://zello.com/">
+	<img id="logo" src="//zello.com/img/logo_32.png" alt="Zello logo"/>
+</a>
+<h1>Zello server API reference</h1>
+<p class="meta"><b>Version:</b> 1.0.0</p>
+<p>Zello server API offers an easy way to interact with Zello server in order to manipulate users and channels from your application. The API compliments Zello push-to-talk SDK which allows you to seamlessly integrate push-to-talk into your Android, Windows or Windows Mobile application.</p>
+<h2>Overview</h2>
+<p>The API is based on JSON over HTTP protocol. Requests are sent using GET and POST HTTP requests, server responses are returned in HTTP response body and presented in <a href="http://www.json.org">JSON</a>. Each response includes "status" and "code" fields, indicating the response success status or error details. In the case of success, <em>code</em> is "200" and <em>status</em> is "OK". Successful response example:</p>
+        <pre>
+{
+    "status":"OK",
+    "code":"200"
+}
+        </pre>
+<p>Error response example:</p>
+        <pre>
+{
+    "status":"Unauthorized",
+    "code":"301"
+}
+        </pre>
+<p><a href="#error_codes">The list of possible error codes.</a></p>
+<p>All values you send to the server as GET parameters must be <a href="http://en.wikipedia.org/wiki/Percent-encoding">url-encoded</a>. Most programming languages offer functions, which you can use to accomplish that (use <span class="code">urlencode()</span> in PHP, <span class="code">encodeURIComponent()</span> in JavaScript, and <span class="code">URLEncoder.encode()</span> in Java).</p>
+
+
+<h2>Security model</h2>
+<h3>API key</h3>
+<p>To access the API you need to enable API access in your Zello for Work admin console or in Zello Enterprise Server configuration file as follows:
+</p>
+<ul>
+	<li><b>Zello for Work:</b> Log in to the admin console. On the Dashboard under Account section click <em>Get API key</em> </li>
+	<li><b>Zello Enterprise Server:</b> Set API_KEY define in <em>common_params.cfg.php</em> to any alpha-numeric sequence.</li>
+</ul>
+<h3>Application authentication</h3>
+<p>Before accessing the API functions the application must authenticate using <em>API key</em> and administrative user <em>username</em> and <em>password</em>. If authentication was successful the Session ID returned should be use for all future API calls. See <a href="#auth_section">authentication methods</a> description for details. When the application ends working with the API (for example the user logs out) it should use <a href="#logout">logout</a> API method to end the session and clear the Session ID.</p>
+<h2>Zello server API client libraries</h2>
+<p>To simplify the use of the API we offer the following client libraries:</p>
+<ul>
+	<li><b>PHP</b> <a href="http://zellowork.com/zello_api_client_php.zip">Download</a></li>
+	<li><b>C#</b>: Coming soon</li>
+</ul>
+
+<h2>Notation</h2>
+<p>This document uses the following notation for requests description:</p>
+<ul>
+	<li><b>Curly brackets "{}"</b> denote parameter values. When using the API replace them with the actual values i.e
+		<span class="code">GET user/get/login/{username}</span> becomes
+		<span class="code">GET user/get/login/Test1</span>, where Test1 is the username of the user for which you want to get the details.</li>
+	<li><b>Square brackets "[]"</b> denote optional parameters. I.e. in <span class="code">GET user/get[/login/{username}]</span> request specifying <span class="code">/login/{username}</span> part of the URL is optional.</li>
+</ul>
+<p>Responses format is JSON, where "{", "}", "[", and "]" are part of the syntax.</p>
+<p>POST methods format uses two lines, separated by an empty line:</p>
+		<pre>
+POST /something		<- Request URL
+
+foo=bar&a=b		<- Request data
+		</pre>
+
+<h2>API methods</h2>
+<table>
+	<tr><th>Name</th><th>Description</th></tr>
+	<tr>
+		<td><a href="#gettoken">user/gettoken</a></td>
+		<td>Gets security token &mdash; login first phase.</td>
+	</tr>
+	<tr>
+		<td><a href="#login">user/login</a></td>
+		<td>Authenticates the user and starts API session &mdash; login second phase.</td>
+	</tr>
+	<tr>
+		<td><a href="#user_get">user/get</a></td>
+		<td>Gets the list of the users or detailed information regarding a particular user. </td>
+	</tr>
+	<tr>
+		<td><a href="#user_save">user/save</a></td>
+		<td>Adds or updates the user.</td>
+	</tr>
+	<tr>
+		<td><a href="#user_delete">user/delete</a></td>
+		<td>Deletes users.</td>
+	</tr>
+	<tr>
+		<td><a href="#user_addto">user/addto</a></td>
+		<td>Adds users to the channel. </td>
+	</tr>
+	<tr>
+		<td><a href="#user_removefrom">user/removefrom</a></td>
+		<td>Removes users from the channel.</td>
+	</tr>
+	<tr>
+		<td><a href="#user_addcontactsto">user/addcontactsto</a></td>
+		<td>Adds users as direct contacts to the user. </td>
+	</tr>
+	<tr>
+		<td><a href="#user_removecontactsfrom">user/removecontactsfrom</a></td>
+		<td>Removes users from direct contacts of the user.</td>
+	</tr>
+	<tr>
+		<td><a href="#channel_get">channel/get</a></td>
+		<td>Gets the list of the channels or detailed information regarding a particular channel. </td>
+	</tr>
+	<tr>
+		<td><a href="#channel_add">channel/add</a></td>
+		<td>Adds a new channel.</td>
+	</tr>
+	<tr>
+		<td><a href="#channel_delete">channel/delete</a></td>
+		<td>Deletes channels. </td>
+	</tr>
+	<tr>
+		<td><a href="#channel_roles">channel/roleslist</a></td>
+		<td>Returns list of channel roles.</td>
+	</tr>
+	<tr>
+		<td><a href="#channel_saverole">channel/saverole</a></td>
+		<td>Create or update role.</td>
+	</tr>
+	<tr>
+		<td><a href="#channel_addtorole">channel/addtorole</a></td>
+		<td>Assign channel role to users in channel.</td>
+	</tr>
+	<tr>
+		<td><a href="#channel_addtorole">channel/deleterole</a></td>
+		<td>Delete channel role.</td>
+	</tr>
+	<tr>
+		<td><a href="#history_getmetadata">history/getmetadata</a></td>
+		<td>Returns metadata for saved history messages based on filtering criteria, specified in the request.</td>
+	</tr>
+	<tr>
+		<td><a href="#history_getmedia">history/getmedia</a></td>
+		<td>Requests media by media key from the recording server.</td>
+	</tr>
+</table>
+
+<h3 id="auth_section">Authentication</h3>
+<h4 id="gettoken">user/gettoken</h4>
+Gets security token &mdash; login first phase.
+<h5>Request format:</h5>
+        <pre>
+GET /user/gettoken
+        </pre>
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+	<tr>
+		<td>token</td><td>String</td><td>Secure token required for <a href="#login">login</a> API method.</td>
+	</tr>
+	<tr>
+		<td>sid</td><td>String</td><td>Session ID. Pass this value as <em>sid</em> GET parameter to all successful API calls.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+    "token":"rm7s6g1e3zfujs5fxzc095sw0dp04arl",
+    "sid":"ad7e61e520fa4167b5ea1489c7e04f8d"
+}
+        </pre>
+
+<h4 id="login">user/login</h4>
+Authenticates the user and starts API session &mdash; login second phase.
+<h5>Request format:</h5>
+        <pre>
+POST /user/login?sid={sid}
+
+username={username}&password={password}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>username</td><td>POST</td><td>Username of the administrative user accessing the app.</td>
+	</tr>
+	<tr>
+		<td>password</td><td>POST</td><td>Authentication passphrase constructed as <span class="code">md5(md5({password}) + {token} + {api_key})</span>. That is md5 hash of md5 of user's password concatenated with the token received in response to <a href="#gettoken">gettoken</a> and concatenated with API key.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200"
+}
+        </pre>
+<h4 id="logout">user/logout</h4>
+Logs user out and ends the session.
+<h5>Request format:</h5>
+        <pre>
+GET /user/logout?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200"
+}
+        </pre>
+<h3>Users management</h3>
+
+<h4 id="user_get">user/get</h4>
+Gets the list of the users or detailed information regarding a particular user.
+<h5>Request format:</h5>
+        <pre>
+GET /user/get[/login/{login}][/gateway/{gateway}][/max/{max}][/start/{start}]?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>GET</td><td>(Optional) Username of the user to fetch. If omitted all users will be returned.</td>
+	</tr>
+	<tr>
+		<td>gateway</td><td>GET</td><td>(Optional) Gateway users filter. Set to "true" for gateways, omit for normal users.</td>
+	</tr>
+	<tr>
+		<td>max</td><td>GET</td><td>(Optional) Maximum number of results to fetch.</td>
+	</tr>
+	<tr>
+		<td>start</td><td>GET</td><td>(Optional) Index of the first result to fetch.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+	<tr>
+		<td>users</td><td>Array</td><td>An array containing user details objects. See response example below.</td>
+	</tr>
+	<tr>
+		<td>limits</td><td>Object</td><td>Restrictions on number of users and gateways imposed by your current service plan or license. See response example below.</td>
+	</tr>
+	<tr>
+		<td>canAddUsers</td><td>Boolean</td><td>Indicates, whether more users can be added.</td>
+	</tr>
+	<tr>
+		<td>canAddGateways</td><td>Boolean</td><td>Indicates, whether more gateways can be added.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+    "users":[
+	{
+	    "name":"A very long user name",
+	    "email":"",
+	    "admin":true,
+	    "limited_access":false,
+	    "job":"",
+	    "full_name":"",
+	    "channels":[]
+	},{
+	    "name":"john",
+	    "email":"",
+	    "admin":true,
+	    "limited_access":false,
+	    "job":"",
+	    "full_name":"John",
+	    "channels":["Shared"]
+	},{
+	    "name":"alex",
+	    "email":"alex@zello.com",
+	    "admin":false,
+	    "limited_access":false,
+	    "job":"",
+	    "full_name":"Алексей Гаврилов",
+	    "channels":["Test", "Shared"]
+	}
+    ],
+    "limits":{
+        "maxUsers":"10",
+        "maxGateways":"2"
+    },
+    "canAddUsers":true,
+    "canAddGateways":true
+}
+        </pre>
+
+<h4 id="user_save">user/save</h4>
+Adds or updates the user. If username exists, the user is updated, otherwise new user is created.
+<h5>Request format:</h5>
+        <pre>
+POST /user/save?sid={sid}
+
+name={name}&password={password}&email={email}&full_name={full_name}&job={job}&admin={admin}&limited_access={limited_access}&gateway={gateway}&add={add}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>POST</td><td>Username of the user to be updated. If user doesn't exist the new one is created.</td>
+	</tr>
+	<tr>
+		<td>password</td><td>POST</td><td>(Optional if user already exists) The md5 hash of the new user password.</td>
+	</tr>
+	<tr>
+		<td>email</td><td>POST</td><td>(Optional) User's e-mail address. Required for forgot password function.</td>
+	</tr>
+	<tr>
+		<td>full_name</td><td>POST</td><td>(Optional) Alias used to display the user in contacts.</td>
+	</tr>
+	<tr>
+		<td>job</td><td>POST</td><td>(Optional) User position.</td>
+	</tr>
+	<tr>
+		<td>admin</td><td>POST</td><td>(Optional) "true" or "false". Grant or not web-console (and API) access to that user. Default is "false".</td>
+	</tr>
+	<tr>
+		<td>limited_access</td><td>POST</td><td>(Optional) "true" or "false". Restrict or not user's ability to start one-on-one conversations. Default is "false".</td>
+	</tr>
+	<tr>
+		<td>gateway</td><td>POST</td><td>(Optional) "true" or "false". Defines whether the user a gateway. Default is "false".</td>
+	</tr>
+	<tr>
+		<td>add</td><td>POST</td><td>(Optional) "true" or "false". Force adding a user. If this parameter is set to "true" the method will give an error when trying to update existing user. Default is "false".</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+
+<h4 id="user_delete">user/delete</h4>
+Deletes users.
+<h5>Request format:</h5>
+        <pre>
+POST /user/delete?sid={sid}
+
+{login}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>POST array</td><td>An array of usernames of users to be deleted. Here is an  example of logins array formatted as POST array.
+		<p><span class="code">login[]=test&login[]=test%202&login[]=test3</span></p>
+		represents the following array
+		<p><span class="code">["test", "test 2", "test3"]</span></p></td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Request example:</h5>
+        <pre>
+POST /user/delete?sid=cf48c88ac8732da3bc88bf9b6858ec85
+
+login[]=test&login[]=test%202&login[]=test3
+        </pre>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+<h4 id="user_addto">user/addto</h4>
+Adds users to the channel.
+<h5>Request format:</h5>
+        <pre>
+POST /user/addto/{channel}?sid={sid}
+
+{login}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>channel</td><td>GET</td><td>Channel name.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>POST array</td><td>An array of usernames of users to be added to the channel. See <a href="#user_delete">user/delete</a>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+<h4 id="user_removefrom">user/removefrom</h4>
+Removes users from the channel.
+<h5>Request format:</h5>
+        <pre>
+POST /user/removefrom/{channel}?sid={sid}
+
+{login}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>channel</td><td>GET</td><td>Channel name.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>POST array</td><td>An array of usernames of users to be removed from the channel. See <a href="#user_delete">user/delete</a>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+<h4 id="user_addcontactsto">user/addcontactsto</h4>
+Adds users to the user's direct contacts.
+<h5>Request format:</h5>
+        <pre>
+POST /user/addcontactsto/{username}?sid={sid}
+
+{login}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>username</td><td>GET</td><td>Username of the user, where the contacts will be added.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>POST array</td><td>An array of usernames of users to be added to the contacts. See <a href="#user_delete">user/delete</a>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+<h4 id="user_removecontactsfrom">user/removecontactsfrom</h4>
+Removes users from direct contacts of the user.
+<h5>Request format:</h5>
+        <pre>
+POST /user/removecontactsfrom/{username}?sid={sid}
+
+{login}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>username</td><td>GET</td><td>Username of the user from who the contacts will be removed.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>POST array</td><td>An array of usernames of users to be removed from the direct contacts. See <a href="#user_delete">user/delete</a>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+<!-- channels -->
+
+<h3>Channels management</h3>
+<h4 id="channel_get">channel/get</h4>
+Gets the list of the channels or detailed information regarding a particular channel.
+<h5>Request format:</h5>
+        <pre>
+GET /channel/get[/name/{name}][/max/{max}][/start/{start}]?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>GET</td><td>(Optional) Name of the channel to fetch. If omitted all channels will be returned.</td>
+	</tr>
+	<tr>
+		<td>max</td><td>GET</td><td>(Optional) Maximum number of results to fetch.</td>
+	</tr>
+	<tr>
+		<td>start</td><td>GET</td><td>(Optional) Index of the first result to fetch.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+	<tr>
+		<td>channels</td><td>Array</td><td>An array containing channel details objects. See response example below.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+    "channels":[
+    {
+        "name":"Dynamic",
+        "count":"0",
+        "is_shared":0,
+        "is_invisible":0
+    },{
+        "name":"Shared",
+        "count":"1",
+        "is_shared":1,
+        "is_invisible":0
+    },{
+        "name":"Test",
+        "count":"2",
+        "is_shared":1,
+        "is_invisible":1
+    }
+    ]
+}
+        </pre>
+<h4 id="channel_add">channel/add</h4>
+Adds a new channel.
+<h5>Request format:</h5>
+        <pre>
+GET /channel/add/name/{name}[/shared/{shared}][/invisible/{invisible}]?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>GET</td><td>Channel name. If channel with such name already exists the error will be returned.</td>
+	</tr>
+	<tr>
+		<td>shared</td><td>GET</td><td>(Optional) "true" or "false". Set to "true" to create group channel, set to "false" to create dynamic channel. Default is "false"  </td>
+	</tr>
+	<tr>
+		<td>invisible</td><td>GET</td><td>(Optional) "true" or "false". Set to "true" in combination with shared=true to create a hidden group channel. When combined with shared=false the behavior is not defined. Default is "false"  </td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+<h4 id="channel_delete">channel/delete</h4>
+Deletes channels.
+<h5>Request format:</h5>
+        <pre>
+POST /channel/delete?sid={sid}
+
+{name}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>POST array</td><td>An array of names of channels to be deleted. See <a href="#user_delete">user/delete</a></td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+
+}
+        </pre>
+
+
+
+
+
+<h4 id="channel_roles">channel/roleslist</h4>
+Get channel roles list.
+<h5>Request format:</h5>
+        <pre>
+GET /channel/roleslsit/name/{name}?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>GET</td><td>Channel name.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+	<tr>
+		<td>roles</td><td>Array</td><td>An array containing channel roles objects list. See response example below.</td>
+	</tr>
+</table>
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200",
+	"roles": [{
+		"name": "dispatchers",
+		"settings": {
+			"listen_only": false,
+			"no_disconnect": true,
+			"allow_alerts": true,
+			"to": ["dispatchers", "dispatchers", "drivers", "security"]
+		}
+	}, {
+		"name": "drivers",
+		"settings": {
+			"listen_only": false,
+			"no_disconnect": true,
+			"allow_alerts": false,
+			"to": ["dispatchers"]
+		}
+	}, {
+		"name": "security",
+		"settings": {
+			"listen_only": true,
+			"no_disconnect": true,
+			"allow_alerts": true,
+			"to": []
+		}
+	}, {
+		"name": "superusers",
+		"settings": {
+			"listen_only": false,
+			"no_disconnect": false,
+			"allow_alerts": true,
+			"to": []
+		}
+	}]
+}
+</pre>
+
+
+
+
+
+
+<h4 id="channel_saverole">channel/saverole</h4>
+Create or update channel role.
+<h5>Request format:</h5>
+        <pre>
+POST /channel/saverole/channel/{channelname}/name/{name}?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>channelname</td><td>GET</td><td>Channel name.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>GET</td><td>Role name. If role with this name already exists, it will be updated with new params.</td>
+	</tr>
+	<tr>
+		<td>settings</td><td>POST</td><td>Role settings.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+
+<h5>Request example:</h5>
+<pre>
+POST /channel/saverole/channel/Everyone/name/drivers?sid=cf48c88ac8732da3bc88bf9b6858ec85
+
+<b>settings</b>: {"listen_only": false, "no_disconnect": true, "allow_alerts": false, "to": ["dispatchers"]}
+</pre>
+
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200"
+}
+</pre>
+
+
+
+
+
+
+<h4 id="channel_addtorole">channel/addtorole</h4>
+Assign users to a channel role (or reset assignments).
+<h5>Request format:</h5>
+        <pre>
+POST /channel/addtorole/channel/{channelname}/name/[{rolename}]/?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>channelname</td><td>GET</td><td>Channel name.</td>
+	</tr>
+	<tr>
+		<td>name</td><td>GET</td><td>Role name. If role name is empty, role assignments are being reset for these users.</td>
+	</tr>
+	<tr>
+		<td>login</td><td>POST array</td><td>An array of usernames of users to be assigned to this role in this channel.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+
+<h5>Request example:</h5>
+<pre>
+POST /channel/addtorole/channel/Everyone/name/drivers?sid=cf48c88ac8732da3bc88bf9b6858ec85
+
+login[]=driverA&login[]=driverB&login[]=driverC
+</pre>
+
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200"
+}
+</pre>
+
+
+
+
+
+
+
+
+
+<h4 id="channel_deleterole">channel/deleterole</h4>
+Delete channel role(s). When channel role is deleted, role assignments are being reset to users who was assigned to this tole.
+<h5>Request format:</h5>
+        <pre>
+POST /channel/deleterole/channel/{channelname}/?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>channelname</td><td>GET</td><td>Channel name.</td>
+	</tr>
+	<tr>
+		<td>roles</td><td>POST array</td><td>An array of roles names to delete.</td>
+	</tr>
+</table>
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th><th>Type</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td><td>String</td><td>Status message &mdash; "OK" or error description.</td>
+	</tr>
+	<tr>
+		<td>code</td><td>String</td><td>Status code &mdash; "200" or error code.</td>
+	</tr>
+</table>
+
+<h5>Request example:</h5>
+<pre>
+POST /channel/deleterole/channel/Everyone?sid=cf48c88ac8732da3bc88bf9b6858ec85
+
+roles[]=drivers&roles[]=testRole
+</pre>
+
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status":"OK",
+    "code":"200"
+}
+</pre>
+
+
+
+
+
+<!-- history -->
+<h3>Zello recordings access</h3>
+<h4 id="history_getmetadata">history/getmetadata</h4>
+Returns metadata for saved history messages based on filtering criteria, specified in the request. All filters are optional, the last 100 messages from the network are returned by default.
+<h5>Request format:</h5>
+        <pre>
+POST /history/getmetadata?sid={sid}
+
+[sender={sender}][&recipient={recipient}][&via_channel={via_channel}][&is_channel={is_channel}][&type={type}]
+[&text={text}][&eid={eid}][&start_ts={start_ts}][&end_ts={end_ts}][&start_id={start_id}]
+[&end_id={end_id}][&max={max}][&start={start}][&sort={sort}][&sort_order={sort_order}]
+        </pre>
+
+<h5>Request fields:</h5>
+<table class="params">
+	<tr>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>sender</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Username of the user, who sent the messages. If omitted messages from all senders will be
+			included. </td>
+	</tr>
+	<tr>
+		<td>recipient</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Username of the user, who received the messages (either directly or through a channel).
+
+			If omitted the messages to all recipients will be included.</td>
+	</tr>
+	<tr>
+		<td>via_channel</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) If provided, limit messages returned to the messages, delivered through specified channel.
+			Setting this filter automatically overrides is_channel&nbsp;filter to true.</td>
+	</tr>
+	<tr>
+		<td>is_channel</td>
+		<td>POST
+
+			Boolean</td>
+		<td>(Optional) If set to true, only messages sent through channels will be included. If set to false&nbsp;only direct messages will be included. If omitted all messages will be included.
+		</td>
+	</tr>
+	<tr>
+		<td>type</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Filter by media type. Supported values are:
+			<ul>
+				<li>voice</li>
+				<li>image</li>
+				<li>call_alert</li>
+			</ul>
+			If omitted all media types will be included.</td>
+	</tr>
+	<tr>
+		<td>text</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Text to search in call alerts text </td>
+	</tr>
+	<tr>
+		<td>eid</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Filter by external id. If provided, only messages associated with the specified id will be
+			returned.
+
+
+
+			eid will not be set by default. SDK consumers can optionally specify it when sending a message through
+			the SDK. </td>
+	</tr>
+	<tr>
+		<td>start_ts</td>
+		<td>POST
+
+			Integer</td>
+		<td>(Optional) Epoch timestamp. If provided only messages sent after the specified time will be
+			returned. </td>
+	</tr>
+	<tr>
+		<td>end_ts</td>
+		<td>POST
+
+			Integer</td>
+		<td>(Optional) Epoch timestamp. If provided only messages sent before the specified time will be returned.
+			Must be greater than start_ts. </td>
+	</tr>
+	<tr>
+		<td>start_id</td>
+		<td>POST
+
+			Integer</td>
+		<td>(Optional) If provided, only messages with id equal or greater than start_id will be included in the
+			response. </td>
+	</tr>
+	<tr>
+		<td>end_id</td>
+		<td>POST
+
+			Integer</td>
+		<td>(Optional) If provided, only messages with id equal or less than end_id will be included in the response.
+			Must be greater or equal to start_id. </td>
+	</tr>
+	<tr>
+		<td>max</td>
+		<td>POST
+
+			Integer</td>
+		<td>(Optional) Maximum number of messages to include in the response. Used for pagination of results.
+		</td>
+	</tr>
+	<tr>
+		<td>start</td>
+		<td>POST
+
+			Integer</td>
+		<td>(Optional) The index of the first message to include in the response. Used for pagination of
+			results. </td>
+	</tr>
+	<tr>
+		<td>sort</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Field that result messages will be sorted by. By default results are sorted by <b>id</b> field. All fields from message object can be used for sorting except <b>channel_users</b> and <b>text</b></td>
+	</tr>
+
+	<tr>
+		<td>sort_order</td>
+		<td>POST
+
+			String</td>
+		<td>(Optional) Sort direction. Supported values are: <b>desc</b> and <b>asc</b>. Default is <b>desc</b></td>
+	</tr>
+
+</table>
+
+
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td>
+		<td>String</td>
+		<td>Status message — "OK" or error description. </td>
+	</tr>
+	<tr>
+		<td>code</td>
+		<td>String</td>
+		<td>Status code — "200" or error code. </td>
+	</tr>
+	<tr>
+		<td>total</td>
+		<td>Integer</td>
+		<td>Total number of messages matching the query </td>
+	</tr>
+	<tr>
+		<td>returned</td>
+		<td>Integer</td>
+		<td>Number of messages returned. It may be less than total due to effect of max&nbsp;attribute and also limitations set by the API.
+		</td>
+	</tr>
+	<tr>
+		<td>messages</td>
+		<td>Array</td>
+		<td>An array of JSON objects, representing history metadata. The results are sorted in reverse chronological
+			order (newest first). </td>
+	</tr>
+</table>
+
+<h5><i>message</i> object fields</h5>
+<table>
+	<tr>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>id</td>
+		<td>Integer</td>
+		<td>Message id. Message id is auto-increment field uniquely identifying messages. </td>
+	</tr>
+	<tr>
+		<td>type</td>
+		<td>String</td>
+		<td>Message media type. Supported values are:
+			<ul>
+				<li>voice</li>
+				<li>image</li>
+				<li>call_alert</li>
+			</ul>
+		</td>
+	</tr>
+	<tr>
+		<td>ts</td>
+		<td>Integer</td>
+		<td>Epoch timestamp of when the message was sent </td>
+	</tr>
+	<tr>
+		<td>eid</td>
+		<td>String</td>
+		<td>External ID of the message.
+
+			Note: This field will only be present if original message had it. </td>
+	</tr>
+	<tr>
+		<td>sender</td>
+		<td>String</td>
+		<td>Username of the sender of the message</td>
+	</tr>
+	<tr>
+		<td>recipient <sup><a name="ftnt1_href" href="#ftnt1">[1]</a></sup></td>
+		<td>String</td>
+		<td>Username or channel name </td>
+	</tr>
+	<tr>
+		<td>recipient_type</td>
+		<td>String</td>
+		<td>"user" or "channel" </td>
+	</tr>
+	<tr>
+		<td>media_key</td>
+		<td>String</td>
+		<td>Key, which can be used to download media associated with the message.
+
+
+
+			Note: This field won&#39;t be present if type of the message is call_alert</td>
+	</tr>
+	<tr>
+		<td>duration</td>
+		<td>Integer</td>
+		<td>Voice message duration in milliseconds.
+
+
+
+			Note: This field will only be present if type of the message is voice</td>
+	</tr>
+	<tr>
+		<td>channel_users</td>
+		<td>Array</td>
+		<td>An array of strings, representing usernames of users, who received the message through a channel.
+
+
+
+			Note: This field will only be present recipient_type&nbsp;is channel.</td>
+	</tr>
+	<tr>
+		<td>image_ts</td>
+		<td>Integer</td>
+		<td>Epoch timestamp of when the image was taken
+
+
+
+			Note: This field may only be present if type of the message is image. In some cases this timestamp will be unavailable.
+		</td>
+	</tr>
+	<tr>
+		<td>image_source</td>
+		<td>String</td>
+		<td>"camera" or "library"
+
+
+
+			Note: This field will only be present if type of the message is image.</td>
+	</tr>
+	<tr>
+		<td>text</td>
+		<td>String</td>
+		<td>Call alert text as sent in the message. It could be empty.
+
+
+
+			Note: This field will only be present if type of the message is call_alert.</td>
+	</tr>
+</table>
+
+
+<h5>Successful response example:</h5>
+        <pre>
+{
+    "status": "OK",
+    "code": "200",
+    "total": 532,
+    "returned": 20,
+    "messages": [
+        {
+            "id": 5634258,
+            "type": "voice",
+            "ts": 1418944471,
+            "sender":"alex",
+            "recipient":"Everyone",
+            "recipient_type": "channel",
+            "media_key":"8417df672fff10c141e36c9778cde2fa",
+            "duration": 9200,
+            "channel_users": ["john","chris","molly","admin"]
+        },
+        {
+            "id": 5634257,
+            "type": "voice",
+            "ts": 1418904471,
+            "sender":"admin",
+            "recipient":"Everyone",
+            "recipient_type": "channel",
+            "media_key":"8417df672fff10c141e36c9778cde2fa",
+            "duration": 12100,
+            "channel_users": ["john","chris","molly","alex"]
+        },
+        {
+            "id": 5634256,
+            "type": "image",
+            "ts": 1418844400,
+            "sender":"alex",
+            "recipient":"admin",
+            "recipient_type": "user",
+            "media_key":"8417df672fff10c141e36c9778cde2fa",
+            "image_ts": 1418840400,
+            "image_source": "camera"
+        },
+        {
+            "id": 5634255,
+            "type": "call_alert",
+            "ts": 1418834000,
+            "sender":"alex",
+            "recipient":"molly",
+            "recipient_type": "user",
+            "text":"Zello me!"
+        }
+    ]
+}
+        </pre>
+
+
+<h4 id="history_getmedia">history/getmedia</h4>
+<p>Requests media by media key from the recording server.</p>
+<p>Depending on media type it may require additional time on conversion. The client must use long-poll method and keep the connection open until it receives server response, or there is a timeout.</p>
+<p>The timeout should be set to at least 30 seconds. If the request was terminated on timeout without server returning any error, it needs to be repeated.</p>
+<p>Since the operation is CPU intensive and potentially long running there will be throttling limiting the maximum number of concurrent requests per network and API key.</p>
+<h5>Request format:</h5>
+        <pre>
+GET /history/getmedia/key/{key}?sid={sid}
+        </pre>
+
+<h5>Request fields:</h5>
+<table>
+	<tr>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>sid</td><td>GET</td><td>Session ID received in response to <a href="#gettoken">gettoken</a> call.</td>
+	</tr>
+	<tr>
+		<td>key</td>
+		<td>GET
+
+			String</td>
+		<td>Media key extracted from metadata, retrieved using <a href="#history_getmetadata">history/getmetadata</a> call.</td>
+	</tr>
+</table>
+<h5>Response fields:</h5>
+<table>
+	<tr>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Description</th>
+	</tr>
+	<tr>
+		<td>status</td>
+		<td>String</td>
+		<td>Status message — "OK", "Waiting", "Working" or error
+			description. </td>
+	</tr>
+	<tr>
+		<td>code</td>
+		<td>String</td>
+		<td>Status code — "200", "201", "202" or error code. </td>
+	</tr>
+	<tr>
+		<td>type</td>
+		<td>String</td>
+		<td>Media type. Supported media types are:
+            <ul>
+				<li>voice</li>
+				<li>image</li>
+			</ul>
+		</td>
+	</tr>
+	<tr>
+		<td>url</td>
+		<td>String</td>
+		<td>Use this URL to download the media.
+
+            Note that the URL may be https&nbsp;and may include redirects. </td>
+	</tr>
+	<tr>
+		<td>expires</td>
+		<td>Integer</td>
+		<td>Epoch timestamp when the cached media expires. If you try to download it after, you&#39;ll get 404 Not
+			Found error. </td>
+	</tr>
+	<tr>
+		<td>progress</td>
+		<td>Integer</td>
+		<td>Current operation progress in %. Will be sent by server periodically if operation taking longer than 20
+			seconds to complete. The status will be set to "Waiting" (then progress reflects operation place
+			in execution queue) or "Working" (then progress will reflect conversion progress). </td>
+	</tr>
+
+</table>
+
+<h5>Successful response examples</h5>
+<h6>Voice media is ready</h6>
+<pre>
+{
+    "status": "OK",
+    "code": "200",
+    "type": "voice",
+    "url": "https://mesh.zellowork.com/media/8417df672fff10c141e36c97.mp3",
+    "expires": 1418834000
+}
+</pre>
+
+<h6>Image media is ready</h6>
+<pre>
+{
+    "status": "OK",
+    "code": "200",
+    "type": "image",
+    "url": "https://mesh.zellowork.com/media/8417df672fff10c141e36c97.jpg",
+    "expires": 1418834060
+}
+</pre>
+
+<h6>Conversion is in progress</h6>
+<pre>
+{
+    "status": "Waiting",
+    "code": "200",
+    "type": "voice",
+    "progress": 0
+}
+</pre>
+
+<h2 id="error_codes">Error codes</h2>
+<table>
+	<tr>
+		<th>Code</th><th>Description</th>
+	</tr>
+	<tr>
+		<td>301</td><td>Unauthenticated. User credentials missing.</td>
+	</tr>
+	<tr>
+		<td>302</td><td>Unauthorized. Login is OK but the user doesn't have admin rights.</td>
+	</tr>
+	<tr>
+		<td>303</td><td>Invalid username or password.</td>
+	</tr>
+	<tr>
+		<td>305</td><td>Missing auth token.</td>
+	</tr>
+	<tr>
+		<td>400</td><td>Bad request. Most likely a typo in the method name.</td>
+	</tr>
+	<tr>
+		<td>404</td><td>Resource not found. User or channel requested doesn't exist</td>
+	</tr>
+	<tr>
+		<td>405</td><td>Resource already exists.</td>
+	</tr>
+	<tr>
+		<td>407</td><td>Limits reached. The license or service plan doesn't allow to add more users.</td>
+	</tr>
+	<tr>
+		<td>501</td><td>Database error.</td>
+	</tr>
+	<tr>
+		<td>504</td><td>Error communicating to Zello login server.</td>
+	</tr>
+	<tr>
+		<td>519</td><td>Zello login server retuned an error.</td>
+	</tr>
+	<tr>
+		<td>520</td><td>Server failed to update user's password.</td>
+	</tr>
+	<tr>
+		<td>605</td><td>Missing required parameters.</td>
+	</tr>
+</table>
+
+<p><sup><a name="ftnt1" href="#ftnt1_href">[1]</a></sup> Multi-recipient messages (supported in Windows only), are a client-side feature and will be saved separately for each recipient despite having the same content.</p>
+
+</body>
+</html>
